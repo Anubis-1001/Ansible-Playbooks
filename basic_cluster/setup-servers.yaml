@@ -1,0 +1,83 @@
+---
+- name: Setup servers for cluster
+  hosts: webservers
+  become: true
+  tasks:
+    - name: Update package list
+      apt: 
+        update_cache: yes
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+    - name: Make sure UFW allows nginx traffic
+      ufw: 
+        rule: allow
+        name: 'Nginx HTTP'
+        state: enabled
+    - name: Copy test.html file in host
+      template:
+        src: ./test.html.j2
+        dest: /var/www/html/test.html
+        owner: www-data
+        group: www-data
+        mode: '0644'
+    - name: copy custom nginx configuration
+      copy:
+        src: ./nginx.conf
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart nginx
+
+    - name: Start and enable nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+  handlers:
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+
+
+
+- name: Setup load-balancers for cluster
+  hosts: load-balancers
+  become: true
+  tasks:
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+    - name: Setup basic failover for servers
+      template:
+        src: ./haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: '0644'
+      register: rendered_template
+    - name: Check rendered template
+      debug:
+        msg: "Rendered template is: {{ lookup( 'template', 'haproxy.cfg.j2' ) }}"
+    - name: restart HAProxy
+      systemd:
+        name: haproxy
+        state: restarted
+
+
+- name: Validate configurations fro webservers
+  hosts: webservers
+  become: true
+  tasks:
+    - name: Make request to URL
+      uri:
+        url: http://{{ ansible_host }}/test.html
+        return_content: yes
+      register: result
+    - name: Validate the response content
+      debug:
+        msg: "Web server {{ inventory_hostname }} is serving content: {{ result.content }}"

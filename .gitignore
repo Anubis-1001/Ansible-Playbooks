@@ -2,4 +2,5 @@
 **/.vagrant/
 
 #Prometheus data
-database_server/prometheus-linux/data
+database_server/prometheus-linux/
+!database_server/prometheus-linux/prometheus.yml

@@ -1,0 +1,62 @@
+---
+- name: Setup Monitoring in VM's
+  hosts: db1
+  become: true
+  tasks:
+    - name: Create user for node exporter
+      user:
+        name: node_exporter
+        shell: /usr/sbin/nologin
+    - name: Download node exporter
+      get_url: 
+        url: https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz
+        dest: /tmp/node_exporter.tar.gz
+    - name: Unarchive nodex_exporter file
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /usr/local/bin
+        remote_src: yes
+    - name: Move Node exporter binary
+      shell: mv /usr/local/bin/node_exporter*/node_exporter /usr/local/bin/node_exporter
+      args:
+        creates: /usr/local/bin/node_exporter
+    - name: Setup correct permissions
+      file:
+        path: /usr/local/bin/node_exporter
+        owner: node_exporter
+        group: node_exporter
+        mode: '0755'
+    - name: Create Node Exporter service
+      copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+          [Unit]
+          Description=Node Exporter
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          User=node_exporter
+          Group=node_exporter
+          Type=simple
+          ExecStart=/usr/local/bin/node_exporter
+
+          [Install]
+          WantedBy=default.target
+
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Start node exporter
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: true
+
+    - name: Open port 9100 for Node Exporter (ufw)
+      ufw:
+        rule: allow
+        port: '9100'
+

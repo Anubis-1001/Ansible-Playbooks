@@ -1,0 +1,5 @@
+#vagrant conf files
+**/.vagrant/
+
+#Prometheus data
+database_server/prometheus-linux/data
